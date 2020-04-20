@@ -1,6 +1,8 @@
 import os
 import uuid
 import datetime
+from urllib.parse import urljoin
+
 from django.conf import settings
 from redactor.utils import import_class
 
@@ -51,10 +53,18 @@ class BaseUploaderRedactor(object):
         """
         Return url for file if he saved else None
         """
-        if not hasattr(self, 'real_path'):
-            return None
-        else:
-            return self.file_storage.url(self.real_path)
+        if getattr(settings, 'MEDIA_URL') is None:
+            raise ValueError('MEDIA_URL should be set')
+
+        base_url = os.path.join(
+            settings.MEDIA_URL,
+            getattr(settings, 'REDACTOR_UPLOAD', 'redactor/')
+        )
+
+        return urljoin(
+            base_url,
+            self.get_filename()
+        )
 
     def get_filename(self):
         """
@@ -70,7 +80,9 @@ class BaseUploaderRedactor(object):
 
     @staticmethod
     def get_default_upload_path():
-        return getattr(settings, 'REDACTOR_UPLOAD', 'redactor/')
+        if getattr(settings, 'MEDIA_ROOT') is None:
+            raise ValueError('MEDIA_ROOT should be set')
+        return os.path.join(settings.MEDIA_ROOT, getattr(settings, 'REDACTOR_UPLOAD', 'redactor'))
 
 
 class SimpleUploader(BaseUploaderRedactor):
@@ -102,9 +114,10 @@ class DateDirectoryUploader(SimpleUploader):
     """
     Handler  that saves files in a directory based on the current date
 
-    /2014/3/28/filename.etc
+    <MEDIA_ROOT>/<REDACTOR_UPLOAD>/2014/3/28/filename.etc
     """
     def get_upload_path(self):
-        today = datetime.datetime.today()
-        path = '{0}/{1}/{2}'.format(today.year, today.month, today.day)
+        path = super().get_default_upload_path()
+        today = datetime.date.today()
+        path = os.path.join(path, str(today.year), str(today.month), str(today.day))
         return path
